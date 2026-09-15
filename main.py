@@ -5,6 +5,7 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 import yt_dlp
 
+# دریافت توکن از متغیرهای محیطی
 TOKEN = os.environ.get("BOT_TOKEN")
 
 app = Flask(__name__)
@@ -22,16 +23,23 @@ async def download_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = await update.message.reply_text("⏳ در حال دانلود ویدیو... لطفا صبور باشید.")
     output_path = f"/tmp/{update.message.message_id}.mp4"
 
+    # تنظیمات پیشرفته دانلود برای دور زدن محدودیت‌های یوتیوب و سرور ابری
     ydl_opts = {
         'outtmpl': output_path,
         'format': 'best[ext=mp4]/best',
         'quiet': True,
         'nocheckcertificate': True,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'ios']
+            }
+        }
     }
 
-    # اگر فایل کوکی وجود داشت آن را اعمال کن
+    # استفاده از فایل کوکی محرمانه در صورت وجود
     if os.path.exists("cookies.txt"):
         ydl_opts['cookiefile'] = "cookies.txt"
+
     try:
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(ydl_opts).download([url]))
@@ -44,6 +52,7 @@ async def download_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await msg.edit_text(f"❌ خطایی در دانلود رخ داد: {str(e)}")
     finally:
+        # پاک‌سازی فایل از حافظه سرور برای جلوگیری از پر شدن هارد
         if os.path.exists(output_path):
             os.remove(output_path)
 

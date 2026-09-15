@@ -23,20 +23,26 @@ async def download_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = await update.message.reply_text("⏳ در حال دانلود ویدیو... لطفا صبور باشید.")
     output_path = f"/tmp/{update.message.message_id}.mp4"
 
-    # تنظیمات پیشرفته دانلود برای دور زدن محدودیت‌های یوتیوب و سرور ابری
+    # تنظیمات پیشرفته دور زدن مکانیزم‌های جدید شناسایی یوتیوب
     ydl_opts = {
         'outtmpl': output_path,
         'format': 'best[ext=mp4]/best',
         'quiet': True,
         'nocheckcertificate': True,
+        'geo_bypass': True,
+        # استفاده از کلاینت‌های TV و وب هوشمند که مسدودی دیتاسنتر ندارند
         'extractor_args': {
             'youtube': {
-                'player_client': ['android', 'ios']
+                'player_client': ['tv_embedded', 'android_creator', 'ios'],
+                'player_skip': ['webpage', 'configs']
             }
+        },
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
         }
     }
 
-    # استفاده از فایل کوکی محرمانه در صورت وجود
+    # اگر فایل کوکی محرمانه در Render وجود داشت
     if os.path.exists("cookies.txt"):
         ydl_opts['cookiefile'] = "cookies.txt"
 

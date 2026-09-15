@@ -14,38 +14,50 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("سلام! لینک ویدیو را ارسال کنید تا دانلود کنم.")
 
 def download_via_cobalt(url, output_path):
-    # استفاده از ساختار جدید API Cobalt
-    api_url = "https://api.cobalt.tools/"
+    # لیست اینسنتس‌های فعال Cobalt برای فال‌بک و پایداری بالا
+    instances = [
+        "https://api.cobalt.tools/",
+        "https://cobalt-api.kwiatek.xyz/",
+        "https://co.wuk.sh/"
+    ]
+    
     headers = {
         "Accept": "application/json",
         "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
     }
+    
     payload = {
         "url": url,
-        "videoQuality": "720"
+        "videoQuality": "720",
+        "downloadMode": "auto"
     }
-    
-    response = requests.post(api_url, json=payload, headers=headers, timeout=15)
-    
-    if response.status_code != 200:
-        raise Exception(f"خطای سرویس API (کد {response.status_code})")
-        
-    data = response.json()
-    
-    # دریافت لینک مستقیم بر اساس وضعیت پاسخ Cobalt
+
     download_url = None
-    if data.get("status") in ["tunnel", "redirect"]:
-        download_url = data.get("url")
-    elif data.get("status") == "picker":
-        # اگر چند کیفیت وجود داشت، اولی را انتخاب کن
-        download_url = data.get("picker", [{}])[0].get("url")
-        
+    last_error = ""
+
+    # امتحان کردن سرورها یکی پس از دیگری
+    for instance in instances:
+        try:
+            response = requests.post(instance, json=payload, headers=headers, timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("status") in ["tunnel", "redirect"]:
+                    download_url = data.get("url")
+                    break
+                elif data.get("status") == "picker":
+                    download_url = data.get("picker", [{}])[0].get("url")
+                    break
+            else:
+                last_error = f"کد {response.status_code} از سرور {instance}"
+        except Exception as e:
+            last_error = str(e)
+            continue
+
     if not download_url:
-        error_code = data.get("text", "پاسخ نامعتبر از API")
-        raise Exception(f"خطای Cobalt: {error_code}")
-        
-    # دانلود فایل با جریان داده (Streaming)
+        raise Exception(f"امکان دریافت لینک وجود نداشت ({last_error})")
+
+    # دانلود فایل ویدیو
     with requests.get(download_url, stream=True, headers={"User-Agent": headers["User-Agent"]}) as r:
         r.raise_for_status()
         with open(output_path, 'wb') as f:

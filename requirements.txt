@@ -1,5 +1,5 @@
 python-telegram-bot
-yt-dlp
+pytubefix
 flask
 gunicorn
 requests

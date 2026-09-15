@@ -26,8 +26,12 @@ async def download_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'outtmpl': output_path,
         'format': 'best[ext=mp4]/best',
         'quiet': True,
-        'cookiefile': 'cookies.txt',  # <--- این خط اضافه شد
+        'nocheckcertificate': True,
     }
+
+    # اگر فایل کوکی وجود داشت آن را اعمال کن
+    if os.path.exists("cookies.txt"):
+        ydl_opts['cookiefile'] = "cookies.txt"
     try:
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(ydl_opts).download([url]))

@@ -1,5 +1,5 @@
 python-telegram-bot
-yt-dlp
+yt-dlp>=2026.1.1
 flask
 gunicorn
 requests

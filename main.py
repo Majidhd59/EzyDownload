@@ -5,7 +5,7 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 import yt_dlp
 
-# دریافت توکن از متغیرهای محیطی
+# دریافت توکن از متغیرهای محیطی Render
 TOKEN = os.environ.get("BOT_TOKEN")
 
 app = Flask(__name__)
@@ -23,26 +23,24 @@ async def download_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = await update.message.reply_text("⏳ در حال دانلود ویدیو... لطفا صبور باشید.")
     output_path = f"/tmp/{update.message.message_id}.mp4"
 
-    # تنظیمات پیشرفته دور زدن مکانیزم‌های جدید شناسایی یوتیوب
+    # تنظیمات پیشرفته با پشتیبانی از پروکسی و کلاینت‌های غیردیتاسنتری
     ydl_opts = {
         'outtmpl': output_path,
         'format': 'best[ext=mp4]/best',
         'quiet': True,
         'nocheckcertificate': True,
         'geo_bypass': True,
-        # استفاده از کلاینت‌های TV و وب هوشمند که مسدودی دیتاسنتر ندارند
+        # استفاده از کلاینت‌های تی‌وی که حساسیتی روی آی‌پی ندارند
         'extractor_args': {
             'youtube': {
-                'player_client': ['tv_embedded', 'android_creator', 'ios'],
-                'player_skip': ['webpage', 'configs']
+                'player_client': ['tv', 'mweb', 'android'],
             }
         },
-        'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
-        }
+        # در صورت نیاز می‌توانید یک پروکسی سالم (HTTP/SOCKS5) قرار دهید
+        # 'proxy': 'http://USERNAME:PASSWORD@HOST:PORT',
     }
 
-    # اگر فایل کوکی محرمانه در Render وجود داشت
+    # اگر فایل کوکی محرمانه در Render تعریف شده باشد
     if os.path.exists("cookies.txt"):
         ydl_opts['cookiefile'] = "cookies.txt"
 
@@ -58,7 +56,7 @@ async def download_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await msg.edit_text(f"❌ خطایی در دانلود رخ داد: {str(e)}")
     finally:
-        # پاک‌سازی فایل از حافظه سرور برای جلوگیری از پر شدن هارد
+        # پاک‌سازی حافظه موقت سرور
         if os.path.exists(output_path):
             os.remove(output_path)
 

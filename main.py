@@ -13,52 +13,56 @@ application = Application.builder().token(TOKEN).build()
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("سلام! لینک ویدیو را ارسال کنید تا دانلود کنم.")
 
-def download_via_cobalt(url, output_path):
-    # لیست اینسنتس‌های فعال Cobalt برای فال‌بک و پایداری بالا
+def extract_video_id(url):
+    """استخراج Video ID از لینک یوتیوب"""
+    if "youtu.be/" in url:
+        return url.split("youtu.be/")[1].split("?")[0]
+    elif "watch?v=" in url:
+        return url.split("watch?v=")[1].split("&")[0]
+    elif "shorts/" in url:
+        return url.split("shorts/")[1].split("?")[0]
+    return None
+
+def download_via_invidious(url, output_path):
+    video_id = extract_video_id(url)
+    if not video_id:
+        raise Exception("لینک یوتیوب نامعتبر است.")
+
+    # اینستنس‌های فعال و معتبر Invidious API
     instances = [
-        "https://api.cobalt.tools/",
-        "https://cobalt-api.kwiatek.xyz/",
-        "https://co.wuk.sh/"
+        "https://inv.riverside.rocks",
+        "https://invidious.nerdvpn.de",
+        "https://invidious.drgns.space",
+        "https://vid.puffyan.us"
     ]
-    
-    headers = {
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-    }
-    
-    payload = {
-        "url": url,
-        "videoQuality": "720",
-        "downloadMode": "auto"
-    }
 
     download_url = None
-    last_error = ""
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 
-    # امتحان کردن سرورها یکی پس از دیگری
+    # دریافت اطلاعات ویدیو از API اینستنس‌ها
     for instance in instances:
         try:
-            response = requests.post(instance, json=payload, headers=headers, timeout=10)
-            if response.status_code == 200:
-                data = response.json()
-                if data.get("status") in ["tunnel", "redirect"]:
-                    download_url = data.get("url")
+            api_url = f"{instance}/api/v1/videos/{video_id}"
+            res = requests.get(api_url, headers=headers, timeout=8)
+            if res.status_code == 200:
+                data = res.json()
+                format_streams = data.get("formatStreams", [])
+                
+                # پیدا کردن بهترین کیفیت MP4 ترکیبی (صدا + تصویر)
+                for stream in reversed(format_streams):
+                    if stream.get("container") == "mp4" and stream.get("url"):
+                        download_url = stream.get("url")
+                        break
+                if download_url:
                     break
-                elif data.get("status") == "picker":
-                    download_url = data.get("picker", [{}])[0].get("url")
-                    break
-            else:
-                last_error = f"کد {response.status_code} از سرور {instance}"
-        except Exception as e:
-            last_error = str(e)
+        except Exception:
             continue
 
     if not download_url:
-        raise Exception(f"امکان دریافت لینک وجود نداشت ({last_error})")
+        raise Exception("امکان استخراج لینک دانلود مستقیم وجود نداشت.")
 
-    # دانلود فایل ویدیو
-    with requests.get(download_url, stream=True, headers={"User-Agent": headers["User-Agent"]}) as r:
+    # دانلود فایل mp4 با Streaming
+    with requests.get(download_url, stream=True, headers=headers, timeout=30) as r:
         r.raise_for_status()
         with open(output_path, 'wb') as f:
             for chunk in r.iter_content(chunk_size=8192):
@@ -76,7 +80,7 @@ async def download_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     try:
         loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, download_via_cobalt, url, file_path)
+        await loop.run_in_executor(None, download_via_invidious, url, file_path)
 
         await msg.edit_text("📤 در حال آپلود به تلگرام...")
         with open(file_path, 'rb') as video_file:

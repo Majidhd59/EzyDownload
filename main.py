@@ -1,9 +1,9 @@
 import os
 import asyncio
+import requests
 from flask import Flask, request
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
-from pytubefix import YouTube
 
 TOKEN = os.environ.get("BOT_TOKEN")
 
@@ -11,36 +11,51 @@ app = Flask(__name__)
 application = Application.builder().token(TOKEN).build()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("سلام! لینک ویدیو یوتیوب را بفرستید تا دانلود کنم.")
+    await update.message.reply_text("سلام! لینک ویدیو را ارسال کنید تا دانلود کنم.")
 
-def fetch_and_download(url, file_path):
-    # استفاده از کلاینت ANDROID_VR که بیشترین سرعت و بدون گیری دانلود را دارد
-    yt = YouTube(url, client='ANDROID_VR')
-    ys = yt.streams.filter(progressive=True, file_extension='mp4').get_highest_resolution()
+def download_via_cobalt(url, output_path):
+    # استفاده از API عمومی Cobalt برای دریافت لینک مستقیم ویدیو
+    api_url = "https://api.cobalt.tools/api/json"
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "url": url,
+        "vCodec": "h264"
+    }
     
-    if not ys:
-        ys = yt.streams.get_highest_resolution()
-        
-    ys.download(output_path="/tmp", filename=os.path.basename(file_path))
-    return yt.title
+    response = requests.post(api_url, json=payload, headers=headers)
+    data = response.json()
+    
+    if "url" in data:
+        video_url = data["url"]
+        # دانلود فایل ویدیو از لینک مستقیم
+        with requests.get(video_url, stream=True) as r:
+            r.raise_for_status()
+            with open(output_path, 'wb') as f:
+                for chunk in r.iter_content(chunk_size=8192):
+                    f.write(chunk)
+        return True
+    else:
+        raise Exception("امکان دریافت لینک دانلود وجود نداشت.")
 
 async def download_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text
-    if not ("youtube.com" in url or "youtu.be" in url):
-        await update.message.reply_text("لطفاً یک لینک معتبر از یوتیوب بفرستید.")
+    if not url.startswith("http"):
+        await update.message.reply_text("لطفاً یک لینک معتبر بفرستید.")
         return
 
-    msg = await update.message.reply_text("⏳ در حال دانلود ویدیو از یوتیوب...")
+    msg = await update.message.reply_text("⏳ در حال دانلود ویدیو...")
     file_path = f"/tmp/{update.message.message_id}.mp4"
     
     try:
         loop = asyncio.get_event_loop()
-        # اجرای دانلود در Thread جداگانه تا ربات گیر نکند
-        title = await loop.run_in_executor(None, fetch_and_download, url, file_path)
+        await loop.run_in_executor(None, download_via_cobalt, url, file_path)
 
         await msg.edit_text("📤 در حال آپلود به تلگرام...")
         with open(file_path, 'rb') as video_file:
-            await update.message.reply_video(video=video_file, caption=f"🎥 {title}")
+            await update.message.reply_video(video=video_file, caption="بفرمایید! ویدیو دانلود شد.")
         
         await msg.delete()
     except Exception as e:
